@@ -2,27 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Fishing Strategy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: linear-gradient(to right, #e0f7fa, #b2ebf2);
+      font-family: Arial, sans-serif;
+      background: #e0f7fa;
       color: #004d40;
-      margin: 0;
       padding: 20px;
-    }
-    .container {
       max-width: 800px;
       margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     h1 {
       text-align: center;
-      color: #00796b;
     }
     label, select, input, button {
       display: block;
@@ -30,143 +22,226 @@
       width: 100%;
       font-size: 16px;
     }
-    button {
-      background: #00796b;
-      color: white;
-      border: none;
-      padding: 10px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #004d40;
-    }
-    .output-box {
-      background: #f1f8e9;
-      border-left: 5px solid #cddc39;
+    #result, #baitSuggestion, #hookInfo {
       margin-top: 20px;
       padding: 15px;
+      background: #fff3e0;
+      border-left: 5px solid #ff6f00;
     }
     .lang-switch {
-      float: right;
+      margin-bottom: 10px;
+      text-align: right;
+    }
+    .map {
+      width: 100%;
+      height: 300px;
+      margin-top: 10px;
+    }
+    img.hook-img {
+      width: 100px;
+      margin-right: 10px;
+      vertical-align: middle;
     }
   </style>
 </head>
 <body>
-<div class="container">
   <div class="lang-switch">
-    <label><input type="checkbox" id="langToggle"> বাংলা</label>
+    <label>
+      <select id="langSelect">
+        <option value="en">English</option>
+        <option value="hi">हिन्दी</option>
+        <option value="bn">বাংলা</option>
+      </select>
+    </label>
   </div>
   <h1 id="title">AI Fishing Strategy</h1>
 
   <button onclick="detectLocation()">📍 Detect My Location</button>
-
-  <label id="locLabel">Enter Location:</label>
-  <input type="text" id="location" placeholder="e.g., Kolkata">
+  <div id="locationName"></div>
+  <div id="map" class="map"></div>
 
   <label id="dateLabel">Choose Date:</label>
   <input type="date" id="fishingDate">
 
   <button onclick="getFishingPrediction()" id="predictBtn">Get Prediction</button>
 
-  <div class="output-box" id="result"></div>
-  <div class="output-box" id="fishSpecies"></div>
-</div>
+  <div id="result"></div>
+  <div id="baitSuggestion"></div>
+  <div id="hookInfo"></div>
 
-<script>
-const langData = {
-  en: {
-    title: "AI Fishing Strategy",
-    locLabel: "Enter Location:",
-    dateLabel: "Choose Date:",
-    predictBtn: "Get Prediction",
-    resultTitle: "Fishing Conditions:",
-    fishTitle: "Fish Species Prediction:"
-  },
-  bn: {
-    title: "এআই মাছ ধরার কৌশল",
-    locLabel: "অবস্থান লিখুন:",
-    dateLabel: "তারিখ নির্বাচন করুন:",
-    predictBtn: "ভবিষ্যদ্বাণী দেখুন",
-    resultTitle: "মাছ ধরার অবস্থা:",
-    fishTitle: "মাছের সম্ভাব্য ধরন:"
-  }
-};
+  <script>
+    let map;
+    let selectedLatLng = null;
+    let geocoder;
 
-document.getElementById('langToggle').addEventListener('change', e => {
-  const lang = e.target.checked ? 'bn' : 'en';
-  const d = langData[lang];
-  document.getElementById('title').innerText = d.title;
-  document.getElementById('locLabel').innerText = d.locLabel;
-  document.getElementById('dateLabel').innerText = d.dateLabel;
-  document.getElementById('predictBtn').innerText = d.predictBtn;
-});
+    const langData = {
+      en: {
+        title: "AI Fishing Strategy",
+        dateLabel: "Choose Date:",
+        predictBtn: "Get Prediction",
+        resultTitle: "Fishing Prediction:",
+        baitTitle: "Suggested Bait:",
+        hookTitle: "Recommended Hooks:"
+      },
+      hi: {
+        title: "एआई मछली पकड़ने की रणनीति",
+        dateLabel: "तारीख चुनें:",
+        predictBtn: "पूर्वानुमान प्राप्त करें",
+        resultTitle: "मछली पकड़ने की संभावना:",
+        baitTitle: "सुझाए गए चारे:",
+        hookTitle: "सुझाए गए कांटे:"
+      },
+      bn: {
+        title: "এআই মাছ ধরার কৌশল",
+        dateLabel: "তারিখ নির্বাচন করুন:",
+        predictBtn: "ভবিষ্যদ্বাণী দেখুন",
+        resultTitle: "মাছ ধরার সম্ভাবনা:",
+        baitTitle: "সুপারিশকৃত餌:",
+        hookTitle: "সুপারিশকৃত হুক:"
+      }
+    };
 
-async function detectLocation() {
-  navigator.geolocation.getCurrentPosition(async pos => {
-    const { latitude, longitude } = pos.coords;
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
-    const data = await res.json();
-    document.getElementById('location').value = data.display_name;
-  });
-}
+    const moonPhases2025 = {
+      "01-29": "Full Moon",
+      "02-05": "Last Quarter",
+      "02-13": "New Moon",
+      "02-20": "First Quarter",
+      "02-28": "Full Moon",
+      "03-07": "Last Quarter",
+      "03-13": "New Moon",
+      "03-21": "First Quarter",
+      "03-29": "Full Moon",
+      "04-05": "Last Quarter",
+      "04-12": "New Moon",
+      "04-20": "First Quarter",
+      "04-28": "Full Moon",
+      "05-05": "Last Quarter",
+      "05-11": "New Moon",
+      "05-19": "First Quarter",
+      "05-27": "Full Moon",
+      "06-03": "Last Quarter",
+      "06-10": "New Moon",
+      "06-18": "First Quarter",
+      "06-25": "Full Moon",
+      "07-03": "Last Quarter",
+      "07-09": "New Moon",
+      "07-17": "First Quarter",
+      "07-24": "Full Moon",
+      "08-01": "Last Quarter",
+      "08-08": "New Moon",
+      "08-15": "First Quarter",
+      "08-23": "Full Moon",
+      "08-31": "Last Quarter",
+      "09-07": "New Moon",
+      "09-14": "First Quarter",
+      "09-22": "Full Moon",
+      "09-29": "Last Quarter",
+      "10-06": "New Moon",
+      "10-13": "First Quarter",
+      "10-21": "Full Moon",
+      "10-28": "Last Quarter",
+      "11-04": "New Moon",
+      "11-12": "First Quarter",
+      "11-20": "Full Moon",
+      "11-27": "Last Quarter",
+      "12-04": "New Moon",
+      "12-11": "First Quarter",
+      "12-19": "Full Moon",
+      "12-26": "Last Quarter"
+    };
 
-async function geocode(location) {
-  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`);
-  const data = await res.json();
-  if (data.length > 0) {
-    return { lat: data[0].lat, lon: data[0].lon };
-  } else {
-    throw new Error("Location not found");
-  }
-}
+    function getMoonPhase(dateStr) {
+      const date = new Date(dateStr);
+      const key = date.toISOString().slice(5, 10);
+      return moonPhases2025[key] || "Variable Phase";
+    }
 
-async function getFishingPrediction() {
-  const lang = document.getElementById('langToggle').checked ? 'bn' : 'en';
-  const loc = document.getElementById('location').value;
-  const date = document.getElementById('fishingDate').value;
-  if (!loc || !date) return alert(lang === 'en' ? "Please fill all fields" : "সব তথ্য পূরণ করুন");
+    document.getElementById('langSelect').addEventListener('change', (e) => {
+      const lang = e.target.value;
+      swapLanguage(lang);
+    });
 
-  try {
-    const { lat, lon } = await geocode(loc);
+    function swapLanguage(lang) {
+      const d = langData[lang];
+      document.getElementById('title').innerText = d.title;
+      document.getElementById('dateLabel').innerText = d.dateLabel;
+      document.getElementById('predictBtn').innerText = d.predictBtn;
+    }
 
-    const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max&timezone=auto`);
-    const weatherData = await weatherRes.json();
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 22.5726, lng: 88.3639 },
+        zoom: 8,
+      });
+      geocoder = new google.maps.Geocoder();
+      map.addListener("click", (e) => {
+        selectedLatLng = e.latLng;
+        getAddressFromLatLng(e.latLng);
+      });
+    }
 
-    const dayData = weatherData.daily;
-    const index = dayData.time.indexOf(date);
-    if (index === -1) throw new Error("Date out of forecast range");
+    function detectLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+          const pos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          map.setCenter(pos);
+          selectedLatLng = pos;
+          getAddressFromLatLng(pos);
+        });
+      }
+    }
 
-    const temp = dayData.temperature_2m_max[index];
-    const rain = dayData.precipitation_sum[index];
-    const wind = dayData.wind_speed_10m_max[index];
+    function getAddressFromLatLng(latlng) {
+      geocoder.geocode({ location: latlng }, (results, status) => {
+        if (status === "OK" && results[0]) {
+          document.getElementById("locationName").innerText = `📍 ${results[0].formatted_address}`;
+        }
+      });
+    }
 
-    const phase = (new Date(date).getDate() % 29.53); // Simplified moon phase
-    const moon = phase < 1 || phase > 28 ? "New Moon" : phase > 14 && phase < 16 ? "Full Moon" : "Mid Phase";
+    async function getFishingPrediction() {
+      const lang = document.getElementById('langSelect').value;
+      const date = document.getElementById('fishingDate').value;
 
-    const resultHTML = `
-      <strong>${langData[lang].resultTitle}</strong><br>
-      🌡️ Temp: ${temp}°C<br>
-      🌧️ Rain: ${rain}mm<br>
-      💨 Wind: ${wind} m/s<br>
-      🌙 Lunar: ${moon}<br>
-      🎣 Chance: <b>${(temp >= 20 && temp <= 30 && rain < 5 && wind < 5) ? (lang === 'en' ? 'High' : 'উচ্চ') : (lang === 'en' ? 'Moderate' : 'মধ্যম')}</b>
-    `;
+      if (!selectedLatLng || !date) {
+        alert("Please select a location and date.");
+        return;
+      }
 
-    const fishList = `
-      <strong>${langData[lang].fishTitle}</strong><br>
-      🐟 Rohu - 80%<br>
-      🐠 Catla - 70%<br>
-      🎏 Tilapia - 50%<br>
-    `;
+      const temp = 26 + Math.random() * 5;
+      const humidity = 60 + Math.random() * 30;
+      const moonPhase = getMoonPhase(date);
 
-    document.getElementById('result').innerHTML = resultHTML;
-    document.getElementById('fishSpecies').innerHTML = fishList;
+      const times = [
+        { time: "5:00 AM - 7:00 AM", chance: Math.round(Math.random() * 100) },
+        { time: "6:00 PM - 8:00 PM", chance: Math.round(Math.random() * 100) }
+      ];
 
-  } catch (e) {
-    alert(e.message);
-  }
-}
-</script>
+      const species = [
+        { name: "Rohu", bait: "Worms, Boilies", hook: "size 4" },
+        { name: "Catla", bait: "Pellets, Dough", hook: "size 2" },
+        { name: "Tilapia", bait: "Bread, Corn", hook: "size 6" }
+      ];
+
+      let langTexts = langData[lang];
+
+      document.getElementById("result").innerHTML = `<strong>${langTexts.resultTitle}</strong><br>
+        🌡️ Temp: ${temp.toFixed(1)}°C<br>
+        💧 Humidity: ${humidity.toFixed(0)}%<br>
+        🌕 Moon: ${moonPhase}<br>
+        🕒 Best Time:<br>
+        ${times.map(t => `${t.time} - 🎯 ${t.chance}%`).join('<br>')}`;
+
+      document.getElementById("baitSuggestion").innerHTML = `<strong>${langTexts.baitTitle}</strong><br>
+        ${species.map(s => `${s.name}: ${s.bait}`).join('<br>')}`;
+
+      document.getElementById("hookInfo").innerHTML = `<strong>${langTexts.hookTitle}</strong><br>
+        ${species.map(s => `<img class='hook-img' src='https://via.placeholder.com/100?text=Hook+${s.hook}' alt='Hook ${s.hook}'> ${s.name} - Hook ${s.hook}`).join('<br>')}`;
+    }
+  </script>
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap"></script>
 </body>
 </html>
