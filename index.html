@@ -2,21 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Fishing Strategy</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
-      font-family: sans-serif;
-      background: linear-gradient(to right, #e0f7fa, #fff3e0);
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #e0f7fa, #b2ebf2);
       color: #004d40;
+      margin: 0;
       padding: 20px;
-      max-width: 600px;
+    }
+    .container {
+      max-width: 800px;
       margin: auto;
-      border-radius: 10px;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     h1 {
       text-align: center;
-      color: #00695c;
+      color: #00796b;
     }
     label, select, input, button {
       display: block;
@@ -24,171 +30,143 @@
       width: 100%;
       font-size: 16px;
     }
-    input, button {
-      padding: 10px;
-      border-radius: 5px;
-      border: 1px solid #b2dfdb;
-    }
     button {
-      background: #ff6f00;
+      background: #00796b;
       color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
       cursor: pointer;
     }
-    #result, #baitSuggestion {
+    button:hover {
+      background: #004d40;
+    }
+    .output-box {
+      background: #f1f8e9;
+      border-left: 5px solid #cddc39;
       margin-top: 20px;
       padding: 15px;
-      background: #ffffff;
-      border-left: 5px solid #ff6f00;
-      border-radius: 5px;
     }
     .lang-switch {
       float: right;
-      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
+<div class="container">
   <div class="lang-switch">
-    <label>
-      <input type="checkbox" id="langToggle"> বাংলা
-    </label>
+    <label><input type="checkbox" id="langToggle"> বাংলা</label>
   </div>
   <h1 id="title">AI Fishing Strategy</h1>
 
-  <label id="locLabel">Your Location:</label>
-  <input type="text" id="location" readonly>
+  <button onclick="detectLocation()">📍 Detect My Location</button>
+
+  <label id="locLabel">Enter Location:</label>
+  <input type="text" id="location" placeholder="e.g., Kolkata">
 
   <label id="dateLabel">Choose Date:</label>
   <input type="date" id="fishingDate">
 
   <button onclick="getFishingPrediction()" id="predictBtn">Get Prediction</button>
 
-  <div id="result"></div>
-  <div id="baitSuggestion"></div>
+  <div class="output-box" id="result"></div>
+  <div class="output-box" id="fishSpecies"></div>
+</div>
 
-  <script>
-    const langData = {
-      en: {
-        title: "AI Fishing Strategy",
-        locLabel: "Your Location:",
-        dateLabel: "Choose Date:",
-        predictBtn: "Get Prediction",
-        resultTitle: "Fishing Success Prediction:",
-        baitTitle: "Suggested Bait:",
-        error: "Please select a date!",
-        geoFail: "Unable to detect location."
-      },
-      bn: {
-        title: "এআই মাছ ধরার কৌশল",
-        locLabel: "আপনার অবস্থান:",
-        dateLabel: "তারিখ নির্বাচন করুন:",
-        predictBtn: "ভবিষ্যদ্বাণী দেখুন",
-        resultTitle: "মাছ ধরার সম্ভাবনা:",
-        baitTitle: "সুপারিশকৃত餌:",
-        error: "অনুগ্রহ করে একটি তারিখ নির্বাচন করুন!",
-        geoFail: "অবস্থান সনাক্ত করা যায়নি।"
-      }
-    };
+<script>
+const langData = {
+  en: {
+    title: "AI Fishing Strategy",
+    locLabel: "Enter Location:",
+    dateLabel: "Choose Date:",
+    predictBtn: "Get Prediction",
+    resultTitle: "Fishing Conditions:",
+    fishTitle: "Fish Species Prediction:"
+  },
+  bn: {
+    title: "এআই মাছ ধরার কৌশল",
+    locLabel: "অবস্থান লিখুন:",
+    dateLabel: "তারিখ নির্বাচন করুন:",
+    predictBtn: "ভবিষ্যদ্বাণী দেখুন",
+    resultTitle: "মাছ ধরার অবস্থা:",
+    fishTitle: "মাছের সম্ভাব্য ধরন:"
+  }
+};
 
-    // Switch language
-    document.getElementById('langToggle').addEventListener('change', (e) => {
-      const lang = e.target.checked ? 'bn' : 'en';
-      swapLanguage(lang);
-    });
+document.getElementById('langToggle').addEventListener('change', e => {
+  const lang = e.target.checked ? 'bn' : 'en';
+  const d = langData[lang];
+  document.getElementById('title').innerText = d.title;
+  document.getElementById('locLabel').innerText = d.locLabel;
+  document.getElementById('dateLabel').innerText = d.dateLabel;
+  document.getElementById('predictBtn').innerText = d.predictBtn;
+});
 
-    function swapLanguage(lang) {
-      const d = langData[lang];
-      document.getElementById('title').innerText = d.title;
-      document.getElementById('locLabel').innerText = d.locLabel;
-      document.getElementById('dateLabel').innerText = d.dateLabel;
-      document.getElementById('predictBtn').innerText = d.predictBtn;
-    }
+async function detectLocation() {
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude, longitude } = pos.coords;
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+    const data = await res.json();
+    document.getElementById('location').value = data.display_name;
+  });
+}
 
-    // Auto-detect location
-    async function detectLocation() {
-      const locInput = document.getElementById('location');
-      try {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`);
-          const data = await res.json();
-          locInput.value = data.address.city || data.address.town || data.address.village || "Unknown";
-        });
-      } catch {
-        locInput.value = langData[getLang()].geoFail;
-      }
-    }
+async function geocode(location) {
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`);
+  const data = await res.json();
+  if (data.length > 0) {
+    return { lat: data[0].lat, lon: data[0].lon };
+  } else {
+    throw new Error("Location not found");
+  }
+}
 
-    detectLocation();
+async function getFishingPrediction() {
+  const lang = document.getElementById('langToggle').checked ? 'bn' : 'en';
+  const loc = document.getElementById('location').value;
+  const date = document.getElementById('fishingDate').value;
+  if (!loc || !date) return alert(lang === 'en' ? "Please fill all fields" : "সব তথ্য পূরণ করুন");
 
-    function getLang() {
-      return document.getElementById('langToggle').checked ? 'bn' : 'en';
-    }
+  try {
+    const { lat, lon } = await geocode(loc);
 
-    function getMoonPhase(dateStr) {
-      const date = new Date(dateStr);
-      const synodicMonth = 29.53058867;
-      const newMoon = new Date('2000-01-06T18:14:00Z'); // Known new moon
-      const daysSinceNew = (date - newMoon) / 86400000;
-      const phase = daysSinceNew % synodicMonth;
-      if (phase < 1.5 || phase > 28) return "New Moon";
-      if (Math.abs(phase - 14.8) < 1.5) return "Full Moon";
-      return "Other";
-    }
+    const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max&timezone=auto`);
+    const weatherData = await weatherRes.json();
 
-    async function getFishingPrediction() {
-      const location = document.getElementById('location').value;
-      const date = document.getElementById('fishingDate').value;
-      const lang = getLang();
+    const dayData = weatherData.daily;
+    const index = dayData.time.indexOf(date);
+    if (index === -1) throw new Error("Date out of forecast range");
 
-      if (!date) {
-        alert(langData[lang].error);
-        return;
-      }
+    const temp = dayData.temperature_2m_max[index];
+    const rain = dayData.precipitation_sum[index];
+    const wind = dayData.wind_speed_10m_max[index];
 
-      const apiKey = "YOUR_API_KEY_HERE";
-      const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${apiKey}&units=metric`);
-      const weatherData = await weatherRes.json();
+    const phase = (new Date(date).getDate() % 29.53); // Simplified moon phase
+    const moon = phase < 1 || phase > 28 ? "New Moon" : phase > 14 && phase < 16 ? "Full Moon" : "Mid Phase";
 
-      if (weatherData.cod !== 200) {
-        document.getElementById('result').innerText = lang === 'en' ? "Location not found!" : "অবস্থান খুঁজে পাওয়া যায়নি!";
-        return;
-      }
+    const resultHTML = `
+      <strong>${langData[lang].resultTitle}</strong><br>
+      🌡️ Temp: ${temp}°C<br>
+      🌧️ Rain: ${rain}mm<br>
+      💨 Wind: ${wind} m/s<br>
+      🌙 Lunar: ${moon}<br>
+      🎣 Chance: <b>${(temp >= 20 && temp <= 30 && rain < 5 && wind < 5) ? (lang === 'en' ? 'High' : 'উচ্চ') : (lang === 'en' ? 'Moderate' : 'মধ্যম')}</b>
+    `;
 
-      const temp = weatherData.main.temp;
-      const humidity = weatherData.main.humidity;
-      const wind = weatherData.wind.speed;
-      const moonPhase = getMoonPhase(date);
+    const fishList = `
+      <strong>${langData[lang].fishTitle}</strong><br>
+      🐟 Rohu - 80%<br>
+      🐠 Catla - 70%<br>
+      🎏 Tilapia - 50%<br>
+    `;
 
-      let baseScore = (30 - Math.abs(22 - temp)) + (100 - humidity) * 0.1 - wind;
-      if (moonPhase === "Full Moon" || moonPhase === "New Moon") baseScore += 5;
+    document.getElementById('result').innerHTML = resultHTML;
+    document.getElementById('fishSpecies').innerHTML = fishList;
 
-      let chance = baseScore > 20 ? "High" : baseScore > 15 ? "Medium" : "Low";
-
-      const fishBaits = {
-        en: {
-          High: "Use worms, insects, or minnows.",
-          Medium: "Try bread, corn, or dough bait.",
-          Low: "Fish may not bite today. Try natural bait near plants."
-        },
-        bn: {
-          High: "কেঁচো, পোকামাকড় বা ছোট মাছ ব্যবহার করুন।",
-          Medium: "রুটি, ভুট্টা বা ময়দার餌 ব্যবহার করুন।",
-          Low: "আজ মাছ কামড়াতে পারে না। গাছের কাছাকাছি প্রাকৃতিক餌 ব্যবহার করুন।"
-        }
-      };
-
-      const phaseText = moonPhase === "New Moon" ? (lang === 'en' ? "🌑 New Moon" : "🌑 অমাবস্যা") :
-                        moonPhase === "Full Moon" ? (lang === 'en' ? "🌕 Full Moon" : "🌕 পূর্ণিমা") :
-                        (lang === 'en' ? "🌓 Regular Phase" : "🌓 সাধারণ চাঁদ");
-
-      document.getElementById('result').innerHTML =
-        `<strong>${langData[lang].resultTitle}</strong><br>
-         🌡️ Temp: ${temp}°C<br>💧 Humidity: ${humidity}%<br>💨 Wind: ${wind} m/s<br>${phaseText}<br>🎣 Chance: <b>${lang === 'en' ? chance : (chance === "High" ? "উচ্চ" : chance === "Medium" ? "মধ্যম" : "কম")}</b>`;
-      document.getElementById('baitSuggestion').innerHTML =
-        `<strong>${langData[lang].baitTitle}</strong><br>${fishBaits[lang][chance]}`;
-    }
-  </script>
+  } catch (e) {
+    alert(e.message);
+  }
+}
+</script>
 </body>
 </html>
