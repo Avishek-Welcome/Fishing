@@ -7,14 +7,16 @@
   <style>
     body {
       font-family: sans-serif;
-      background: #e0f7fa;
+      background: linear-gradient(to right, #e0f7fa, #fff3e0);
       color: #004d40;
       padding: 20px;
       max-width: 600px;
       margin: auto;
+      border-radius: 10px;
     }
     h1 {
       text-align: center;
+      color: #00695c;
     }
     label, select, input, button {
       display: block;
@@ -22,11 +24,22 @@
       width: 100%;
       font-size: 16px;
     }
+    input, button {
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #b2dfdb;
+    }
+    button {
+      background: #ff6f00;
+      color: white;
+      cursor: pointer;
+    }
     #result, #baitSuggestion {
       margin-top: 20px;
-      padding: 10px;
-      background: #fff3e0;
+      padding: 15px;
+      background: #ffffff;
       border-left: 5px solid #ff6f00;
+      border-radius: 5px;
     }
     .lang-switch {
       float: right;
@@ -42,8 +55,8 @@
   </div>
   <h1 id="title">AI Fishing Strategy</h1>
 
-  <label id="locLabel">Enter Location:</label>
-  <input type="text" id="location" placeholder="e.g., Kolkata">
+  <label id="locLabel">Your Location:</label>
+  <input type="text" id="location" readonly>
 
   <label id="dateLabel">Choose Date:</label>
   <input type="date" id="fishingDate">
@@ -57,22 +70,27 @@
     const langData = {
       en: {
         title: "AI Fishing Strategy",
-        locLabel: "Enter Location:",
+        locLabel: "Your Location:",
         dateLabel: "Choose Date:",
         predictBtn: "Get Prediction",
         resultTitle: "Fishing Success Prediction:",
-        baitTitle: "Suggested Bait:"
+        baitTitle: "Suggested Bait:",
+        error: "Please select a date!",
+        geoFail: "Unable to detect location."
       },
       bn: {
         title: "এআই মাছ ধরার কৌশল",
-        locLabel: "অবস্থান লিখুন:",
+        locLabel: "আপনার অবস্থান:",
         dateLabel: "তারিখ নির্বাচন করুন:",
         predictBtn: "ভবিষ্যদ্বাণী দেখুন",
         resultTitle: "মাছ ধরার সম্ভাবনা:",
-        baitTitle: "সুপারিশকৃত餌:"
+        baitTitle: "সুপারিশকৃত餌:",
+        error: "অনুগ্রহ করে একটি তারিখ নির্বাচন করুন!",
+        geoFail: "অবস্থান সনাক্ত করা যায়নি।"
       }
     };
 
+    // Switch language
     document.getElementById('langToggle').addEventListener('change', (e) => {
       const lang = e.target.checked ? 'bn' : 'en';
       swapLanguage(lang);
@@ -86,18 +104,51 @@
       document.getElementById('predictBtn').innerText = d.predictBtn;
     }
 
+    // Auto-detect location
+    async function detectLocation() {
+      const locInput = document.getElementById('location');
+      try {
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`);
+          const data = await res.json();
+          locInput.value = data.address.city || data.address.town || data.address.village || "Unknown";
+        });
+      } catch {
+        locInput.value = langData[getLang()].geoFail;
+      }
+    }
+
+    detectLocation();
+
+    function getLang() {
+      return document.getElementById('langToggle').checked ? 'bn' : 'en';
+    }
+
+    function getMoonPhase(dateStr) {
+      const date = new Date(dateStr);
+      const synodicMonth = 29.53058867;
+      const newMoon = new Date('2000-01-06T18:14:00Z'); // Known new moon
+      const daysSinceNew = (date - newMoon) / 86400000;
+      const phase = daysSinceNew % synodicMonth;
+      if (phase < 1.5 || phase > 28) return "New Moon";
+      if (Math.abs(phase - 14.8) < 1.5) return "Full Moon";
+      return "Other";
+    }
+
     async function getFishingPrediction() {
       const location = document.getElementById('location').value;
       const date = document.getElementById('fishingDate').value;
-      const lang = document.getElementById('langToggle').checked ? 'bn' : 'en';
+      const lang = getLang();
 
-      if (!location || !date) {
-        alert(lang === 'en' ? "Please fill in all fields!" : "অনুগ্রহ করে সব তথ্য দিন!");
+      if (!date) {
+        alert(langData[lang].error);
         return;
       }
 
       const apiKey = "YOUR_API_KEY_HERE";
-      const weatherRes = await fetch(https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${apiKey}&units=metric);
+      const weatherRes = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${apiKey}&units=metric`);
       const weatherData = await weatherRes.json();
 
       if (weatherData.cod !== 200) {
@@ -108,10 +159,12 @@
       const temp = weatherData.main.temp;
       const humidity = weatherData.main.humidity;
       const wind = weatherData.wind.speed;
+      const moonPhase = getMoonPhase(date);
 
-      // Fake prediction logic (can be replaced with ML model/API)
-      const score = (30 - Math.abs(22 - temp)) + (100 - humidity) * 0.1 - wind;
-      let chance = score > 20 ? "High" : score > 15 ? "Medium" : "Low";
+      let baseScore = (30 - Math.abs(22 - temp)) + (100 - humidity) * 0.1 - wind;
+      if (moonPhase === "Full Moon" || moonPhase === "New Moon") baseScore += 5;
+
+      let chance = baseScore > 20 ? "High" : baseScore > 15 ? "Medium" : "Low";
 
       const fishBaits = {
         en: {
@@ -126,8 +179,15 @@
         }
       };
 
-      document.getElementById('result').innerHTML = <strong>${langData[lang].resultTitle}</strong><br>🌡️ Temp: ${temp}°C<br>💧 Humidity: ${humidity}%<br>💨 Wind: ${wind} m/s<br>🎣 Chance: <b>${lang === 'en' ? chance : (chance === "High" ? "উচ্চ" : chance === "Medium" ? "মধ্যম" : "কম")}</b>;
-      document.getElementById('baitSuggestion').innerHTML = <strong>${langData[lang].baitTitle}</strong><br>${fishBaits[lang][chance]};
+      const phaseText = moonPhase === "New Moon" ? (lang === 'en' ? "🌑 New Moon" : "🌑 অমাবস্যা") :
+                        moonPhase === "Full Moon" ? (lang === 'en' ? "🌕 Full Moon" : "🌕 পূর্ণিমা") :
+                        (lang === 'en' ? "🌓 Regular Phase" : "🌓 সাধারণ চাঁদ");
+
+      document.getElementById('result').innerHTML =
+        `<strong>${langData[lang].resultTitle}</strong><br>
+         🌡️ Temp: ${temp}°C<br>💧 Humidity: ${humidity}%<br>💨 Wind: ${wind} m/s<br>${phaseText}<br>🎣 Chance: <b>${lang === 'en' ? chance : (chance === "High" ? "উচ্চ" : chance === "Medium" ? "মধ্যম" : "কম")}</b>`;
+      document.getElementById('baitSuggestion').innerHTML =
+        `<strong>${langData[lang].baitTitle}</strong><br>${fishBaits[lang][chance]}`;
     }
   </script>
 </body>
