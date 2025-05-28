@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Fishing Strategy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #e0f7fa;
+      color: #004d40;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+    }
+    label, select, input, button {
+      display: block;
+      margin: 10px 0;
+      width: 100%;
+      font-size: 16px;
+    }
+    #result, #baitSuggestion {
+      margin-top: 20px;
+      padding: 10px;
+      background: #fff3e0;
+      border-left: 5px solid #ff6f00;
+    }
+    .lang-switch {
+      float: right;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="lang-switch">
+    <label>
+      <input type="checkbox" id="langToggle"> বাংলা
+    </label>
+  </div>
+  <h1 id="title">AI Fishing Strategy</h1>
+
+  <label id="locLabel">Enter Location:</label>
+  <input type="text" id="location" placeholder="e.g., Kolkata">
+
+  <label id="dateLabel">Choose Date:</label>
+  <input type="date" id="fishingDate">
+
+  <button onclick="getFishingPrediction()" id="predictBtn">Get Prediction</button>
+
+  <div id="result"></div>
+  <div id="baitSuggestion"></div>
+
+  <script>
+    const langData = {
+      en: {
+        title: "AI Fishing Strategy",
+        locLabel: "Enter Location:",
+        dateLabel: "Choose Date:",
+        predictBtn: "Get Prediction",
+        resultTitle: "Fishing Success Prediction:",
+        baitTitle: "Suggested Bait:"
+      },
+      bn: {
+        title: "এআই মাছ ধরার কৌশল",
+        locLabel: "অবস্থান লিখুন:",
+        dateLabel: "তারিখ নির্বাচন করুন:",
+        predictBtn: "ভবিষ্যদ্বাণী দেখুন",
+        resultTitle: "মাছ ধরার সম্ভাবনা:",
+        baitTitle: "সুপারিশকৃত餌:"
+      }
+    };
+
+    document.getElementById('langToggle').addEventListener('change', (e) => {
+      const lang = e.target.checked ? 'bn' : 'en';
+      swapLanguage(lang);
+    });
+
+    function swapLanguage(lang) {
+      const d = langData[lang];
+      document.getElementById('title').innerText = d.title;
+      document.getElementById('locLabel').innerText = d.locLabel;
+      document.getElementById('dateLabel').innerText = d.dateLabel;
+      document.getElementById('predictBtn').innerText = d.predictBtn;
+    }
+
+    async function getFishingPrediction() {
+      const location = document.getElementById('location').value;
+      const date = document.getElementById('fishingDate').value;
+      const lang = document.getElementById('langToggle').checked ? 'bn' : 'en';
+
+      if (!location || !date) {
+        alert(lang === 'en' ? "Please fill in all fields!" : "অনুগ্রহ করে সব তথ্য দিন!");
+        return;
+      }
+
+      const apiKey = "YOUR_API_KEY_HERE";
+      const weatherRes = await fetch(https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${apiKey}&units=metric);
+      const weatherData = await weatherRes.json();
+
+      if (weatherData.cod !== 200) {
+        document.getElementById('result').innerText = lang === 'en' ? "Location not found!" : "অবস্থান খুঁজে পাওয়া যায়নি!";
+        return;
+      }
+
+      const temp = weatherData.main.temp;
+      const humidity = weatherData.main.humidity;
+      const wind = weatherData.wind.speed;
+
+      // Fake prediction logic (can be replaced with ML model/API)
+      const score = (30 - Math.abs(22 - temp)) + (100 - humidity) * 0.1 - wind;
+      let chance = score > 20 ? "High" : score > 15 ? "Medium" : "Low";
+
+      const fishBaits = {
+        en: {
+          High: "Use worms, insects, or minnows.",
+          Medium: "Try bread, corn, or dough bait.",
+          Low: "Fish may not bite today. Try natural bait near plants."
+        },
+        bn: {
+          High: "কেঁচো, পোকামাকড় বা ছোট মাছ ব্যবহার করুন।",
+          Medium: "রুটি, ভুট্টা বা ময়দার餌 ব্যবহার করুন।",
+          Low: "আজ মাছ কামড়াতে পারে না। গাছের কাছাকাছি প্রাকৃতিক餌 ব্যবহার করুন।"
+        }
+      };
+
+      document.getElementById('result').innerHTML = <strong>${langData[lang].resultTitle}</strong><br>🌡️ Temp: ${temp}°C<br>💧 Humidity: ${humidity}%<br>💨 Wind: ${wind} m/s<br>🎣 Chance: <b>${lang === 'en' ? chance : (chance === "High" ? "উচ্চ" : chance === "Medium" ? "মধ্যম" : "কম")}</b>;
+      document.getElementById('baitSuggestion').innerHTML = <strong>${langData[lang].baitTitle}</strong><br>${fishBaits[lang][chance]};
+    }
+  </script>
+</body>
+</html>
